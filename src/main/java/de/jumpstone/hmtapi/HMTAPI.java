@@ -1,4 +1,5 @@
-package tk.darklegacymc.apimachine;
+package de.jumpstone.hmtapi;
+
 import com.google.gson.Gson;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.OfflinePlayer;
@@ -13,10 +14,11 @@ import java.util.regex.Pattern;
 
 import spark.Request;
 import spark.Response;
-import tk.darklegacymc.apimachine.commands.ReloadCommand;
+import de.jumpstone.hmtapi.commands.ReloadCommand;
 
 import static spark.Spark.*;
-public final class APIMachine extends JavaPlugin {
+
+public final class HMTAPI extends JavaPlugin {
     public FileConfiguration config;
 
     @Override
@@ -26,8 +28,8 @@ public final class APIMachine extends JavaPlugin {
         saveDefaultConfig();
         port(config.getInt("port"));
         setupRoutes();
-        Objects.requireNonNull(this.getCommand("apimachine")).setExecutor(new ReloadCommand(this));
-        this.getLogger().info("APIMachine started. Wiki: https://mallusrgreat.gitbook.io/mallusrgreats-plugins/");
+        Objects.requireNonNull(this.getCommand("hmtapi")).setExecutor(new ReloadCommand(this));
+        this.getLogger().info("HMT API started.");
     }
 
     public void setupRoutes() {
@@ -35,10 +37,12 @@ public final class APIMachine extends JavaPlugin {
         get("/api/:endpoint", this::playerNotRequiredRoute);
         get("/api/:endpoint/:username", this::playerRequiredRoute);
     }
+
     public void reloadConfigValues() {
         reloadConfig();
         config = getConfig();
     }
+
     private String playerNotRequiredRoute(Request req, Response res) {
         Gson gson = new Gson();
         String requestedEndpoint = req.params("endpoint");
@@ -60,7 +64,9 @@ public final class APIMachine extends JavaPlugin {
             return gson.toJson(errorMap);
         }
 
-        Set<String> objectKeys = Objects.requireNonNull(config.getConfigurationSection("endpoints." + requestedEndpoint + ".object")).getKeys(false);
+        Set<String> objectKeys = Objects
+                .requireNonNull(config.getConfigurationSection("endpoints." + requestedEndpoint + ".object"))
+                .getKeys(false);
         Map<String, String> data = new HashMap<>();
         for (String key : objectKeys) {
             String value = config.getString("endpoints." + requestedEndpoint + ".object." + key);
@@ -104,14 +110,18 @@ public final class APIMachine extends JavaPlugin {
             return gson.toJson(errorMap);
         }
 
-        Set<String> objectKeys = Objects.requireNonNull(config.getConfigurationSection("endpoints." + requestedEndpoint + ".object")).getKeys(false);
+        Set<String> objectKeys = Objects
+                .requireNonNull(config.getConfigurationSection("endpoints." + requestedEndpoint + ".object"))
+                .getKeys(false);
         Map<String, String> data = new HashMap<>();
         for (String key : objectKeys) {
             String value = config.getString("endpoints." + requestedEndpoint + ".object." + key);
             assert value != null;
-            value = value.replaceAll("\\{username\\}", Matcher.quoteReplacement(Optional.ofNullable(offlinePlayer.getName()).orElse("")));
+            value = value.replaceAll("\\{username\\}",
+                    Matcher.quoteReplacement(Optional.ofNullable(offlinePlayer.getName()).orElse("")));
 
-            LocalDateTime lastSeen = LocalDateTime.ofEpochSecond(offlinePlayer.getLastSeen() / 1000L, 0, java.time.ZoneOffset.UTC);
+            LocalDateTime lastSeen = LocalDateTime.ofEpochSecond(offlinePlayer.getLastLogin() / 1000L, 0,
+                    java.time.ZoneOffset.UTC);
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
             value = value.replaceAll("\\{last_seen\\}", Matcher.quoteReplacement(formatter.format(lastSeen)));
 

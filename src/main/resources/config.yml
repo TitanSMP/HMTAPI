@@ -1,4 +1,4 @@
-# https://mallusrgreat.gitbook.io/mallusrgreats-plugins/
+# HMT Network API Configuration
 port: 4567
 # ^^ The port the API will run on. If changed, requires restart.
 
@@ -6,8 +6,8 @@ port: 4567
 ## INFO
 ##  require_player
 ##    If the endpoint requires a player. If you named the endpoint "hello", then the link will be "/api/hello/(username)" if it is set to true.
-##    If true, the in-built placeholders "{username}" and "{last_seen}" are available.
-##    The format of the in-built variable "{last_seen}" is yyyy/MM/dd HH:mm:ss
+##    If true, the in-built placeholders "{username}" and "{last_login}" are available.
+##    The format of the in-built variable "{last_login}" is yyyy/MM/dd HH:mm:ss
 ##  object
 ##    The actual keys and values to be specified in the object.
 ##    You can have PlaceholderAPI placeholder values using "{papi:%placeholder%}".
@@ -16,7 +16,7 @@ endpoints:
     require_player: true
     object:
       username: "{username}"
-      last_seen: "{last_seen}"
+      last_login: "{last_login}"
       balance: "{papi:%vault_eco_balance%}"
 
   global:
