@@ -1,3 +1,6 @@
+# HMTAPI
+
+Optimized fork of `APIMachine` for the HMT Network.
 
 # APIMachine
 
