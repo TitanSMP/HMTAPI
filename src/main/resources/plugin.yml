@@ -1,15 +1,20 @@
 name: HMTAPI
 version: '${project.version}'
 main: de.jumpstone.hmtapi.HMTAPI
-api-version: '1.21'
+description: RESTful HTTP API for Minecraft servers, configurable through PlaceholderAPI.
+authors: [HMT Network]
+website: https://github.com/TitanSMP/HMTAPI
+api-version: '26.3'
 depend: [PlaceholderAPI]
-permissions:
-  hmtapi.reload:
-    description: "Reload the plugin to apply changes you make in config.yml"
 
 commands:
   hmtapi:
-    description: "The main command of HMT API."
-    permission: "hmtapi.reload"
-    permission-message: "You do not have permission to use this command."
+    description: The main command of HMTAPI.
     usage: /hmtapi <reload>
+    permission: hmtapi.reload
+    permission-message: You do not have permission to use this command.
+
+permissions:
+  hmtapi.reload:
+    description: Allows reloading config.yml without restarting the server.
+    default: op

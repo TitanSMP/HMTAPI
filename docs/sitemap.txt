@@ -1,0 +1,15 @@
+# HMTAPI documentation sitemap
+# Format: <order> <path> — the order pages should appear in the navigation.
+# Root: gaming.henrymeyer.de/projects/plugins/hmtapi/
+
+1 /docs/index
+2 /docs/installation
+3 /docs/configuration
+4 /docs/endpoints
+5 /docs/placeholders
+6 /docs/commands
+7 /docs/status-codes
+8 /docs/security
+9 /docs/performance
+10 /docs/troubleshooting
+11 /docs/migrating-from-apimachine

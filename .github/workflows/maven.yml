@@ -3,29 +3,38 @@ name: Maven Package
 on:
   push:
     branches:
-      - master
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
-
+    name: Build HMTAPI
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
-        settings-path: ${{ github.workspace }} # location for the settings.xml file
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
-    - name: Build with Maven
-      run: mvn clean install
-    - name: "Upload a Build artifact"
-      uses: actions/upload-artifact@v3.1.2
-      with:
-        name: Corpse
-        path: "target/APIMachine.jar"
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn -B --batch-mode clean verify
+
+      - name: Upload HMTAPI jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: HMTAPI
+          path: target/HMTAPI-*.jar
+          if-no-files-found: error
+          retention-days: 30

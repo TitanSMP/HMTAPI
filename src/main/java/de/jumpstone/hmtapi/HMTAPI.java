@@ -1,142 +1,128 @@
 package de.jumpstone.hmtapi;
 
-import com.google.gson.Gson;
-import me.clip.placeholderapi.PlaceholderAPI;
+import de.jumpstone.hmtapi.api.ApiContext;
+import de.jumpstone.hmtapi.api.ApiServer;
+import de.jumpstone.hmtapi.api.ApiSettings;
+import de.jumpstone.hmtapi.api.EndpointRegistry;
+import de.jumpstone.hmtapi.api.Placeholders;
+import de.jumpstone.hmtapi.commands.ReloadCommand;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.Server;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.logging.Logger;
 
-import spark.Request;
-import spark.Response;
-import de.jumpstone.hmtapi.commands.ReloadCommand;
+public final class HMTAPI extends JavaPlugin implements ApiContext {
 
-import static spark.Spark.*;
-
-public final class HMTAPI extends JavaPlugin {
-    public FileConfiguration config;
+    private volatile EndpointRegistry registry = EndpointRegistry.empty();
+    private volatile ApiSettings settings = ApiSettings.defaults();
+    private ApiServer apiServer;
 
     @Override
     public void onEnable() {
-        // Plugin startup logic
-        config = getConfig();
         saveDefaultConfig();
-        port(config.getInt("port"));
-        setupRoutes();
-        Objects.requireNonNull(this.getCommand("hmtapi")).setExecutor(new ReloadCommand(this));
-        this.getLogger().info("HMT API started.");
+        readConfiguration();
+
+        PluginCommand pluginCommand = getCommand("hmtapi");
+        if (pluginCommand == null) {
+            getLogger().severe("The '/hmtapi' command is missing from plugin.yml, disabling HMTAPI.");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        ReloadCommand reloadCommand = new ReloadCommand(this);
+        pluginCommand.setExecutor(reloadCommand);
+        pluginCommand.setTabCompleter(reloadCommand);
+
+        this.apiServer = new ApiServer(this);
+        if (!this.apiServer.start(settings)) {
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
+        ApiSettings active = settings;
+        getLogger().info(() -> "HMTAPI is serving the API on " + active.address() + " ("
+                + registry.names().size() + " endpoints, PlaceholderAPI "
+                + (Placeholders.isAvailable(this) ? "available" : "unavailable") + ").");
     }
 
-    public void setupRoutes() {
-        get("/favicon.ico", (req, res) -> "");
-        get("/api/:endpoint", this::playerNotRequiredRoute);
-        get("/api/:endpoint/:username", this::playerRequiredRoute);
+    @Override
+    public void onDisable() {
+        if (this.apiServer != null) {
+            this.apiServer.stop();
+            this.apiServer = null;
+        }
     }
 
-    public void reloadConfigValues() {
+    public void reload() {
         reloadConfig();
-        config = getConfig();
+        readConfiguration();
     }
 
-    private String playerNotRequiredRoute(Request req, Response res) {
-        Gson gson = new Gson();
-        String requestedEndpoint = req.params("endpoint");
-        if (config.getConfigurationSection("endpoints") == null) {
-            Map<String, String> errorMap = new HashMap<>();
-            errorMap.put("error", "endpoints not found.");
-            return gson.toJson(errorMap);
-        }
+    private void readConfiguration() {
+        ApiSettings previous = this.settings;
+        ApiSettings updated = ApiSettings.load(getConfig(), getLogger());
+        this.settings = updated;
+        this.registry = EndpointRegistry.load(getConfig(), getLogger());
 
-        if (!config.isConfigurationSection("endpoints." + requestedEndpoint)) {
-            Map<String, String> errorMap = new HashMap<>();
-            errorMap.put("error", "Endpoint '" + requestedEndpoint + "' not found.");
-            return gson.toJson(errorMap);
+        if (previous.port() != updated.port() || !previous.bindAddress().equals(updated.bindAddress())) {
+            getLogger().warning("The API address changed from " + previous.address() + " to " + updated.address()
+                    + ". Restart the server to apply it.");
         }
-
-        if (config.getConfigurationSection("endpoints." + requestedEndpoint + ".object") == null) {
-            Map<String, String> errorMap = new HashMap<>();
-            errorMap.put("error", "endpoints." + requestedEndpoint + ".object not found.");
-            return gson.toJson(errorMap);
-        }
-
-        Set<String> objectKeys = Objects
-                .requireNonNull(config.getConfigurationSection("endpoints." + requestedEndpoint + ".object"))
-                .getKeys(false);
-        Map<String, String> data = new HashMap<>();
-        for (String key : objectKeys) {
-            String value = config.getString("endpoints." + requestedEndpoint + ".object." + key);
-            assert value != null;
-            Pattern papiPattern = Pattern.compile("\\{papi:(.*?)\\}");
-            Matcher matcher = papiPattern.matcher(value);
-            StringBuilder sb = new StringBuilder();
-            while (matcher.find()) {
-                String placeholder = matcher.group(1);
-                String replacement = PlaceholderAPI.setPlaceholders(null, placeholder);
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
-            }
-            matcher.appendTail(sb);
-            value = sb.toString();
-            data.put(key, value);
-        }
-        return gson.toJson(data);
     }
 
-    private String playerRequiredRoute(Request req, Response res) {
-        Gson gson = new Gson();
-        String requestedEndpoint = req.params("endpoint");
-        String requestedUsername = req.params("username");
-        OfflinePlayer offlinePlayer = getServer().getOfflinePlayer(requestedUsername);
+    @Override
+    public Logger logger() {
+        return getLogger();
+    }
 
-        if (config.getConfigurationSection("endpoints") == null) {
-            Map<String, String> errorMap = new HashMap<>();
-            errorMap.put("error", "endpoints not found.");
-            return gson.toJson(errorMap);
+    @Override
+    public boolean isActive() {
+        return isEnabled() && !getServer().isStopping();
+    }
+
+    @Override
+    public OfflinePlayer player(String username) {
+        Server server = getServer();
+        OfflinePlayer cached = server.getOfflinePlayerIfCached(username);
+        return cached != null ? cached : server.getOfflinePlayer(username);
+    }
+
+    @Override
+    public String resolvePlaceholders(OfflinePlayer player, String placeholder) {
+        return Placeholders.resolve(this, player, placeholder);
+    }
+
+    @Override
+    public EndpointRegistry registry() {
+        return registry;
+    }
+
+    @Override
+    public ApiSettings settings() {
+        return settings;
+    }
+
+    @Override
+    public <T> CompletableFuture<T> callSync(Callable<T> task) {
+        CompletableFuture<T> future = new CompletableFuture<>();
+        if (!isEnabled() || getServer().isStopping()) {
+            future.completeExceptionally(new IllegalStateException("HMTAPI is not accepting requests."));
+            return future;
         }
-
-        if (!config.isConfigurationSection("endpoints." + requestedEndpoint)) {
-            Map<String, String> errorMap = new HashMap<>();
-            errorMap.put("error", "Endpoint '" + requestedEndpoint + "' not found.");
-            return gson.toJson(errorMap);
+        try {
+            getServer().getScheduler().runTask(this, () -> {
+                try {
+                    future.complete(task.call());
+                } catch (Throwable throwable) {
+                    future.completeExceptionally(throwable);
+                }
+            });
+        } catch (RuntimeException e) {
+            future.completeExceptionally(e);
         }
-
-        if (config.getConfigurationSection("endpoints." + requestedEndpoint + ".object") == null) {
-            Map<String, String> errorMap = new HashMap<>();
-            errorMap.put("error", "endpoints." + requestedEndpoint + ".object not found.");
-            return gson.toJson(errorMap);
-        }
-
-        Set<String> objectKeys = Objects
-                .requireNonNull(config.getConfigurationSection("endpoints." + requestedEndpoint + ".object"))
-                .getKeys(false);
-        Map<String, String> data = new HashMap<>();
-        for (String key : objectKeys) {
-            String value = config.getString("endpoints." + requestedEndpoint + ".object." + key);
-            assert value != null;
-            value = value.replaceAll("\\{username\\}",
-                    Matcher.quoteReplacement(Optional.ofNullable(offlinePlayer.getName()).orElse("")));
-
-            LocalDateTime lastSeen = LocalDateTime.ofEpochSecond(offlinePlayer.getLastLogin() / 1000L, 0,
-                    java.time.ZoneOffset.UTC);
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
-            value = value.replaceAll("\\{last_seen\\}", Matcher.quoteReplacement(formatter.format(lastSeen)));
-
-            Pattern papiPattern = Pattern.compile("\\{papi:(.*?)\\}");
-            Matcher matcher = papiPattern.matcher(value);
-            StringBuilder sb = new StringBuilder();
-            while (matcher.find()) {
-                String placeholder = matcher.group(1);
-                String replacement = PlaceholderAPI.setPlaceholders(offlinePlayer, placeholder);
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
-            }
-            matcher.appendTail(sb);
-            value = sb.toString();
-            data.put(key, value);
-        }
-        return gson.toJson(data);
+        return future;
     }
 }

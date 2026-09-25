@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/APIMachine.iml" filepath="$PROJECT_DIR$/APIMachine.iml" />
+      <module fileurl="file://$PROJECT_DIR$/HMTAPI.iml" filepath="$PROJECT_DIR$/HMTAPI.iml" />
     </modules>
   </component>
 </project>

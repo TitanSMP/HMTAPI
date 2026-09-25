@@ -1,0 +1,87 @@
+---
+title: Migrating from APIMachine
+description: What changes when you move from APIMachine to HMTAPI, and how to update your existing config.
+---
+
+# Migrating from APIMachine
+
+HMTAPI is a fork of [APIMachine](https://modrinth.com/project/9eIn1bYM), developed in cooperation with
+HM Gaming for TitanSMP. It keeps the same idea — endpoints in `config.yml`, served as JSON — and
+aims to stay compatible with existing setups.
+
+## Do I need to change my config?
+
+**Most likely not.** If your `config.yml` works with APIMachine, it works with HMTAPI. Endpoint names,
+`require_player`, `object` sections and all placeholders behave the same.
+
+Two things to know:
+
+- **PlaceholderAPI is now a hard requirement.** In APIMachine it was optional in practice. HMTAPI will
+  not enable without it, so make sure it is installed.
+- **The minimum server version moved up.** HMTAPI needs Paper 26.3 and Java 25. APIMachine targeted
+  much older versions.
+
+## Steps
+
+1. Install and enable PlaceholderAPI.
+2. Stop the server.
+3. Remove the APIMachine jar from `plugins/`.
+4. Delete the old `plugins/APIMachine/` folder so you get a fresh, correct `config.yml`. Save a copy
+   of your endpoints first if you want them.
+5. Put the HMTAPI jar in `plugins/`.
+6. Start the server. HMTAPI creates `plugins/HMTAPI/config.yml`.
+7. Move your endpoints over and run `/hmtapi reload`.
+
+```text
+/hmtapi reload
+```
+
+## What is new
+
+| | |
+|---|---|
+| Player dates | `{last_seen}` works properly, and `{last_login}` is now supported as well |
+| Server settings | `bind_address` lets you control who can reach the API |
+| Timeouts | `request_timeout_seconds` bounds how long a request may take |
+| Date control | `time_zone` and `date_format` are configurable, and `never_seen_value` covers players who never joined |
+| Correct requests | Real status codes for malformed URLs, unknown routes and wrong HTTP methods |
+| Smaller | No bundled libraries, so the jar is a fraction of the size |
+| Modern | Built for current Paper and Java versions |
+
+## Behaviour differences
+
+These are the cases where HMTAPI deliberately answers differently. Your existing client code may
+depend on the old behaviour.
+
+| Situation | APIMachine | HMTAPI |
+|---|---|---|
+| Malformed URL | `200` with an error object | `400` with an error object |
+| Unknown route | `200` with an error object | `404` with an error object |
+| Player name missing | `200` with an error object | `400` with an error object |
+| `POST` or `DELETE` | Handled or ignored | `405` with an `Allow` header |
+| Data collection failed | `200` with an error object | `500` or `503` |
+| Timeout | Not possible | `503` |
+
+**Configuration errors are unchanged.** A missing `endpoints` section, an unknown endpoint name or a
+missing `object` section still returns `200` with the same error text, so setups that check for that
+keep working.
+
+If you are upgrading and your client suddenly sees `400`, `404` or `405` where it used to see `200`,
+this table explains why.
+
+## Also changed
+
+- **The config gained settings.** `bind_address`, `request_timeout_seconds`, `time_zone`,
+  `date_format` and `never_seen_value` are new. Everything that worked before still works, and
+  anything you leave out uses its default.
+- **No bundled libraries.** The old plugin shipped its own HTTP server library inside the jar.
+  HMTAPI uses the Java runtime's built-in one, so the jar is a fraction of the size and there is no
+  third-party code to audit.
+- **A broken placeholder is no longer silent.** In APIMachine, a `{last_login}` value was never
+  actually replaced. If you built around that, the value will now be a real date.
+
+## Next steps
+
+- [Configuration](/docs/configuration) — the full settings reference
+- [Status codes](/docs/status-codes) — every response HMTAPI can give
+- [Endpoints](/docs/endpoints) — defining endpoints
