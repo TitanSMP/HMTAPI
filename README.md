@@ -129,8 +129,27 @@ No test needs a Minecraft server, and none touches the network.
    with `-Xlint:all,-serial,-processing`.
 3. Add tests for new behaviour. Config parsing and HTTP status codes are the areas most likely to
    regress silently.
-4. Open a pull request against `main`. CI runs the same `mvn -B --batch-mode clean verify` on JDK 25
-   and uploads the jar as a workflow artifact.
+4. Open a pull request against `main`.
+
+### Releases
+
+CI runs on published GitHub releases only. Publishing a release tagged `v26.3-1.0.0` builds
+`HMTAPI-26.3-1.0.0.jar` and attaches it to that release, so the asset name always matches the tag.
+
+The version comes from the tag, not from the pom: the workflow passes it in as
+`-Drevision=<version>` and the build writes `target/HMTAPI-<version>.jar`. A leading `v` on the tag
+is stripped, so both `v26.3-1.0.0` and `26.3-1.0.0` produce `HMTAPI-26.3-1.0.0.jar`. The `revision`
+property in `pom.xml` is only the default for local builds, and `plugin.yml` inside the jar picks up
+whatever version was used.
+
+Build and test the exact release jar locally with:
+
+```bash
+mvn clean verify -Drevision=26.3-1.0.0
+```
+
+Note that the workflow builds the tagged commit, not `main`. Any change that should ship has to be
+on the tagged commit.
 
 ### Adding a new placeholder
 
